@@ -101,12 +101,13 @@ if (defined($session->param("username"))) {
                 'username' => $session->param("pid"),
                 'password' => $password,
                 'valid_from' => $session->param("arrival_date"),
+                'category' => $session->param("category"),
                 'duration' => pf::web::guest::valid_access_duration($session->param("access_duration")),
                 'notes' => $session->param("notes"),
             };
 
             # tear down session information
-            $session->clear([ "firstname", "lastname", "email", "phone", "arrival_date", "access_duration" ]);
+            $session->clear([ "firstname", "lastname", "email", "phone", "arrival_date", "access_duration", "category" ]);
 
             if (defined($cgi->param("action_print"))) {
                 # Print page
