@@ -171,7 +171,8 @@ sub node_db_prepare {
        SELECT 
            locationlog.switch as last_switch, locationlog.port as last_port, locationlog.vlan as last_vlan,
            IF(ISNULL(locationlog.connection_type), '', locationlog.connection_type) as last_connection_type,
-           locationlog.dot1x_username as last_dot1x_username, locationlog.ssid as last_ssid
+           locationlog.dot1x_username as last_dot1x_username, locationlog.ssid as last_ssid,
+           locationlog.start_time as last_start_time
        FROM locationlog 
        WHERE mac = ? AND end_time IS NULL
     SQL
@@ -525,7 +526,8 @@ sub node_count_all {
         if ( $params{'where'}{'type'} eq 'pid' ) {
             $node_count_all_sql
                 .= " WHERE node.pid='" . $params{'where'}{'value'} . "'";
-        } elsif ( $params{'where'}{'type'} eq 'category' ) {
+        }
+        elsif ( $params{'where'}{'type'} eq 'category' ) {
 
             my $cat_id = nodecategory_lookup($params{'where'}{'value'});
             if (!defined($cat_id)) {
@@ -536,11 +538,18 @@ sub node_count_all {
             }
             $node_count_all_sql .= " WHERE category_id =" . $cat_id;
         }
+        elsif ( $params{'where'}{'type'} eq 'any' ) {
+            if (exists($params{'where'}{'like'})) {
+                $node_count_all_sql .= " WHERE mac LIKE " . get_db_handle()->quote('%' . $params{'where'}{'like'} . '%');
+            }
+        }
     }
 
     # Hack! Because of the nature of the query built here (we cannot prepare it), we construct it as a string
     # and pf::db will recognize it and prepare it as such
     $node_statements->{'node_count_all_sql_custom'} = $node_count_all_sql;
+    $logger->debug($node_count_all_sql);
+
     return db_data(NODE, $node_statements, 'node_count_all_sql_custom');
 }
 
@@ -561,15 +570,17 @@ sub node_view_all {
         if ( $params{'where'}{'type'} eq 'pid' ) {
             $node_view_all_sql
                 .= " HAVING node.pid='" . $params{'where'}{'value'} . "'";
-
-        } elsif ( $params{'where'}{'type'} eq 'category' ) {
+        }
+        elsif ( $params{'where'}{'type'} eq 'category' ) {
 
             if (!nodecategory_lookup($params{'where'}{'value'})) {
                 # lets be nice and issue a warning if the category doesn't exist
                 $logger->warn("there was a problem looking up category ".$params{'where'}{'value'});
             }
             $node_view_all_sql .= " HAVING category='" . $params{'where'}{'value'} . "'";
-
+        }
+        elsif ( $params{'where'}{'type'} eq 'any' ) {
+            $node_view_all_sql .= " HAVING node.mac like " . get_db_handle->quote('%' . $params{'where'}{'like'} . '%');
         }
     }
     if ( defined( $params{'orderby'} ) ) {
@@ -582,6 +593,7 @@ sub node_view_all {
     # Hack! Because of the nature of the query built here (we cannot prepare it), we construct it as a string
     # and pf::db will recognize it and prepare it as such
     $node_statements->{'node_view_all_sql_custom'} = $node_view_all_sql;
+    $logger->debug($node_view_all_sql);
 
     require pf::pfcmd::report;
     import pf::pfcmd::report;
